@@ -1,13 +1,5 @@
-use quote::quote;
-use syn::{parenthesized, parse::Parse, punctuated::Punctuated, Attribute, LitStr, Token};
-
-mod kw {
-    use syn::custom_keyword;
-
-    custom_keyword!(record);
-    custom_keyword!(subst);
-    custom_keyword!(repr);
-}
+use quote::{quote, ToTokens};
+use syn::{parse::Parse, punctuated::Punctuated, Attribute, LitStr, Token, TypePath};
 
 pub(super) fn impl_derive_as_record(
     ast: &syn::DeriveInput,
@@ -23,92 +15,338 @@ pub(super) fn impl_derive_as_record(
     } else {
         unimplemented!();
     };
-    let mut fun_defs: Vec<proc_macro2::TokenStream> = Vec::new();
-    let mut fun_names = Vec::new();
-    let mut subst_tst = proc_macro2::TokenStream::new();
-    let mut members = Vec::new();
-    let mut member_type = Vec::new();
 
-    for field in fields.iter() {
-        let id = &field.ident;
-        let ty = &field.ty;
-        // Get record string from attribute
-        members.push(id);
-        member_type.push(ty);
+    let mut type_props = TypeProps::default();
 
-        let syn::Field { ref attrs, .. } = field;
+    let type_attrs: Vec<StructMeta> = get_metadata_inner("dbgen", &ast.attrs)?;
 
-        //TODO: get rid of the unwrap!
-        let parsed_attrs: Vec<VariantMeta> = get_metadata_inner("dbgen", attrs)?;
-
-        // Option 1: The field is annotated with a record and repr
-        parsed_attrs.into_iter().for_each(|attr| {
-            let fun_name;
-
-            match attr {
-                VariantMeta::Record { record, repr, .. } => {
-                    // If the attribute is a `record` we need to define a method named
-                    //<field_name>_as_record().
-                    fun_name = syn::parse_str::<proc_macro2::Ident>(&format!(
-                        "{}_as_record",
-                        id.clone().unwrap()
-                    ))
-                    .unwrap();
-
-                    // Push the function name into the collection for later printing.
-                    fun_names.push(fun_name.clone());
-
-                    // If repr attr is present, it will format self as the repr type, else use
-                    // default format.
-                    let field_val = if let Some(repr_ty) = repr {
-                        syn::parse_str::<proc_macro2::TokenStream>(&format!(
-                            "self.{} as {}",
-                            id.clone().unwrap(),
-                            repr_ty.path.get_ident().unwrap()
-                        ))
-                        .unwrap()
-                    } else {
-                        syn::parse_str::<proc_macro2::TokenStream>(&format!(
-                            "self.{}",
-                            id.clone().unwrap()
-                        ))
-                        .unwrap()
-                    };
-
-                    let field_as_record_fn = quote! {
-                        fn #fun_name(&self) -> std::string::String {
-                            format!(#record, #field_val)
-                        }
-                    };
-
-                    fun_defs.push(field_as_record_fn);
+    // occurrence check for type attrs
+    for meta in type_attrs {
+        match meta {
+            StructMeta::RecName { kw, val } => {
+                if let Some((fst_kw, _)) = type_props.type_rec_name {
+                    return Err(occurrence_error(fst_kw, kw, "rec_name"));
                 }
-                VariantMeta::Subst { subst, .. } => {
-                    subst_tst = quote!(
-                        let res = res.replace(#subst, &format!("{}", self.#id));
-                    );
-                }
+                type_props.type_rec_name = Some((kw, val));
             }
-        });
+            StructMeta::RecType { kw, val } => {
+                if let Some((fst_kw, _)) = type_props.type_rec_type {
+                    return Err(occurrence_error(fst_kw, kw, "rec_name"));
+                }
+                type_props.type_rec_type = Some((kw, val));
+            }
+        }
     }
 
-    let res = quote! {
-        impl #id {
-            fn as_record(&self) -> String {
-                let mut res = std::string::String::new();
-                #(
-                    res.push_str(&self.#fun_names());
-                    res.push_str("\n");
-                )*
-                #subst_tst
-                res
+    for field in fields {
+        let id = &field.ident;
+        let syn::Field { ref attrs, .. } = field;
+
+        let field_attrs: Vec<FieldMeta> = get_metadata_inner("dbgen", attrs)?;
+        let mut field_props = FieldProps::new(id.clone().unwrap());
+
+        // Option 1: The field is annotated with a record and repr
+        for attr in field_attrs {
+            match attr {
+                FieldMeta::RecName { kw, val } => {
+                    if let Some((fst_kw, _)) = field_props.rec_name {
+                        return Err(occurrence_error(fst_kw, kw, "rec_name"));
+                    }
+                    // TODO: This check is also done in the generate method, we can probably delete this
+                    if let Some((fst_kw, _)) = type_props.type_rec_name {
+                        return Err(rec_def_error(fst_kw, kw, "rec_name"));
+                    }
+                    field_props.rec_name = Some((kw, val));
+                }
+                FieldMeta::RecType { kw, val } => {
+                    if let Some((fst_kw, _)) = field_props.rec_type {
+                        return Err(occurrence_error(fst_kw, kw, "rec_type"));
+                    }
+                    // TODO: This check is also done in the generate method, we can probably delete this
+                    if let Some((fst_kw, _)) = type_props.type_rec_type {
+                        return Err(rec_def_error(fst_kw, kw, "rec_type"));
+                    }
+                    field_props.rec_type = Some((kw, val));
+                }
+                FieldMeta::RecField { kw, val } => {
+                    if let Some((fst_kw, _)) = field_props.field_name {
+                        return Err(occurrence_error(fst_kw, kw, "rec_field"));
+                    }
+                    field_props.field_name = Some((kw, val))
+                }
+                FieldMeta::Subst { kw, val } => {
+                    if let Some((fst_kw, _)) = field_props.subst {
+                        return Err(occurrence_error(fst_kw, kw, "subst"));
+                    }
+                    field_props.subst = Some((kw, val));
+                }
+                FieldMeta::Repr { kw, val } => {
+                    if let Some((fst_kw, _)) = field_props.repr {
+                        return Err(occurrence_error(fst_kw, kw, "repr"));
+                    }
+                    field_props.repr = Some((kw, val));
+                }
+                FieldMeta::Fmt { kw, val } => {
+                    if let Some((fst_kw, _)) = field_props.format {
+                        return Err(occurrence_error(fst_kw, kw, "repr"));
+                    }
+                    field_props.format = Some((kw, val));
+                }
             }
-            #(#fun_defs)*
         }
-    };
-    Ok(res)
+        type_props.fields.push(field_props);
+    }
+
+    let func = type_props.generate()?;
+    Ok(quote!(
+        impl #id {
+            #func
+        }
+    ))
 }
 
+mod kw {
+    use syn::custom_keyword;
+
+    custom_keyword!(rec_name);
+    custom_keyword!(rec_type);
+    custom_keyword!(field);
+    custom_keyword!(subst);
+    custom_keyword!(repr);
+    custom_keyword!(fmt);
+}
+
+/// Attributes that appear through the whole type
+#[derive(Debug, Clone, Default)]
+struct TypeProps {
+    /// `rec_name` attribute appearing on the top of the type(struct)
+    pub type_rec_name: Option<(kw::rec_name, LitStr)>,
+    /// `rec_type` attribute appearing on the top of the type(struct)
+    pub type_rec_type: Option<(kw::rec_type, LitStr)>,
+    pub fields: Vec<FieldProps>,
+}
+
+impl TypeProps {
+    pub fn generate(&self) -> syn::Result<proc_macro2::TokenStream> {
+        match (&self.type_rec_name, &self.type_rec_type) {
+            (Some((_, rname)), Some((_, rtype))) => self.generate_global(rname, rtype),
+            (None, None) => self.generate_local(),
+            (None, Some((kw, _))) => Err(syn::Error::new_spanned(
+                kw,
+                "global rec_type undefined".to_string(),
+            )),
+            (Some((kw, _)), None) => Err(syn::Error::new_spanned(
+                kw,
+                "global rec_type undefined".to_string(),
+            )),
+        }
+    }
+
+    fn generate_global(
+        &self,
+        rec_name: &LitStr,
+        rec_type: &LitStr,
+    ) -> syn::Result<proc_macro2::TokenStream> {
+        let mut subst = quote! {};
+        let mut idents: Vec<proc_macro2::TokenStream> = Vec::new();
+        // Double curly braces are needed to only print the brace (without formatting). Quadruple
+        // needed because this string is later again used in format! macro
+        let mut record = format!(
+            "record({}, \"{}\") {{{{\n",
+            rec_type.value(),
+            rec_name.value()
+        );
+        for field in &self.fields {
+            // Because we're in Global record mode `field_rec_name` and field_rec_type must be
+            // None
+            // Handle errors if `rec_name` or `rec_type` is set
+            match (&field.rec_name, &field.rec_type) {
+                (None, None) => (),
+                (None, Some((kw, _))) => {
+                    return Err(syn::Error::new_spanned(
+                        kw,
+                        "rec_type cannot be set when the global rec_type exists".to_string(),
+                    ));
+                }
+                (Some((kw, _)), None) => {
+                    return Err(syn::Error::new_spanned(
+                        kw,
+                        "rec_name cannot be set when the global rec_type exists".to_string(),
+                    ));
+                }
+                (Some((kw1, _)), Some((kw2, _))) => {
+                    let mut err = syn::Error::new_spanned(
+                        kw1,
+                        "rec_name cannot be set when the global rec_type exists".to_string(),
+                    );
+                    err.combine(syn::Error::new_spanned(
+                        kw2,
+                        "rec_name cannot be set when the global rec type exists",
+                    ));
+                    return Err(err);
+                }
+            }
+
+            let ident = &field.ident;
+
+            // Handle `subst` attribute
+            if let Some((_, val)) = &field.subst {
+                let value = val.value();
+                subst = quote! {
+                    let res = res.replace(&#value, &self.#ident.to_string());
+                };
+                continue;
+            }
+            // Handle `repr` attribute
+            let ident_repr = if let Some((_, val)) = &field.repr {
+                syn::parse_str::<proc_macro2::TokenStream>(&format!(
+                    "self.{} as {}",
+                    ident,
+                    val.path.get_ident().unwrap()
+                ))
+                .unwrap()
+            } else {
+                syn::parse_str::<proc_macro2::TokenStream>(&format!("self.{}", ident)).unwrap()
+            };
+            // Handle `fmt` attribute
+            if let Some((_, val)) = &field.format {
+                record.push_str(&val.value());
+                record.push('\n');
+            // Handle `field` attribute
+            } else if let Some((_, val)) = &field.field_name {
+                record.push_str(&format!("  field({}, \"{{}}\")\n", &val.value()));
+            }
+            idents.push(ident_repr);
+        }
+        record.push_str("}}\n");
+
+        Ok(quote! {
+            fn as_record(&self) -> String {
+                let res = format!(
+                    #record,
+                    #(#idents,)*
+                );
+                #subst
+                res
+            }
+        })
+    }
+    fn generate_local(&self) -> syn::Result<proc_macro2::TokenStream> {
+        let mut subst = quote! {};
+        let mut idents: Vec<proc_macro2::TokenStream> = Vec::new();
+        let mut record = String::new();
+
+        for field in &self.fields {
+            let ident = &field.ident;
+
+            // Handle `subst` attribute
+            if let Some((_, val)) = &field.subst {
+                let value = val.value();
+                subst = quote! {
+                    let res = res.replace(&#value, &self.#ident.to_string());
+                };
+                continue;
+            }
+
+            // Handle `repr` attribute
+            let ident_repr = if let Some((_, val)) = &field.repr {
+                syn::parse_str::<proc_macro2::TokenStream>(&format!(
+                    "self.{} as {}",
+                    ident,
+                    val.path.get_ident().unwrap()
+                ))
+                .unwrap()
+            } else {
+                syn::parse_str::<proc_macro2::TokenStream>(&format!("self.{}", ident)).unwrap()
+            };
+
+            // Handle `fmt` attribute
+            if let Some((_, val)) = &field.format {
+                record.push_str(&val.value());
+                record.push('\n');
+            // Handle `field` attribute
+            } else if let Some((kw, val)) = &field.field_name {
+                match (&field.rec_name, &field.rec_type) {
+                    (Some((_, rec_name)), Some((_, rec_type))) => {
+                        record.push_str(&format!(
+                            "record({}, \"{}\") {{{{\n  field({}, \"{{}}\")\n}}}}\n",
+                            rec_type.value(),
+                            rec_name.value(),
+                            val.value()
+                        ));
+                    }
+                    (None, None) => {
+                        return Err(syn::Error::new_spanned(
+                            kw,
+                            "field cannot be used in this context without defining rec_name, rec_type".to_string(),
+                        ));
+                    }
+                    (None, Some((kw_type, _))) => {
+                        let mut err = syn::Error::new_spanned(
+                            kw,
+                            "field cannot be used in this context without defining rec_name, rec_type".to_string(),
+                        );
+                        err.combine(syn::Error::new_spanned(kw_type, "rec_type defined here"));
+                        return Err(err);
+                    }
+                    (Some((kw_name, _)), None) => {
+                        let mut err = syn::Error::new_spanned(
+                            kw,
+                            "field cannot be used in this context without defining rec_name, rec_type".to_string(),
+                        );
+                        err.combine(syn::Error::new_spanned(kw_name, "rec_name defined here"));
+                        return Err(err);
+                    }
+                }
+            }
+            idents.push(ident_repr);
+        }
+
+        Ok(quote! {
+            fn as_record(&self) -> String {
+                let res = format!(
+                    #record,
+                    #(#idents,)*
+                );
+                #subst
+                res
+            }
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+struct FieldProps {
+    /// field identifier
+    pub ident: syn::Ident,
+    /// `rec_name` attribute appearing at the field(member) level
+    pub rec_name: Option<(kw::rec_name, LitStr)>,
+    /// `rec_type` attribute appearing at the field(member) level
+    pub rec_type: Option<(kw::rec_type, LitStr)>,
+    /// EPICS record field name
+    pub field_name: Option<(kw::field, LitStr)>,
+    /// overriding format specifier
+    pub format: Option<(kw::fmt, LitStr)>,
+    /// field value representation. e.g. repr = u8 will result in `format("field(DESC, {} as u8", val)`
+    pub repr: Option<(kw::repr, TypePath)>,
+    /// subst pattern, every record name or field can have a pattern substituted by this field
+    /// member
+    pub subst: Option<(kw::subst, LitStr)>,
+}
+
+impl FieldProps {
+    fn new(ident: syn::Ident) -> Self {
+        Self {
+            ident,
+            rec_name: Default::default(),
+            rec_type: Default::default(),
+            field_name: Default::default(),
+            format: Default::default(),
+            repr: Default::default(),
+            subst: Default::default(),
+        }
+    }
+}
 // Copied from `strum_macros`. It uses the internal syn::Parse method to parse into a custom type <T>. check `syn::parse` module
 // documentation for more details.
 //
@@ -126,53 +364,98 @@ fn get_metadata_inner<'a, T: Parse>(
 }
 
 #[derive(Debug, Clone)]
-enum VariantMeta {
-    Record {
-        kw: kw::record,
-        record: LitStr,
-        repr: Option<syn::TypePath>,
-    },
-    Subst {
-        kw: kw::subst,
-        subst: LitStr,
-    },
+enum StructMeta {
+    RecName { kw: kw::rec_name, val: syn::LitStr },
+    RecType { kw: kw::rec_type, val: syn::LitStr },
 }
 
-impl Parse for VariantMeta {
+impl Parse for StructMeta {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let lookahead = input.lookahead1();
-        if lookahead.peek(kw::record) {
-            let mut repr = None;
+        //TODO: use match to enforce handling all variants
+        if lookahead.peek(kw::rec_name) {
             let kw = input.parse()?;
             let _: Token![=] = input.parse()?;
-            let record = input.parse()?;
-            //Checks if repr attribute is set
-            let lookahead_inner = input.lookahead1();
-            if lookahead_inner.peek(Token![,]) {
-                let _: Token![,] = input.parse()?;
-                let _: kw::repr = input.parse().map_err(|mut e| {
-                    e.combine(syn::Error::new(
-                        e.span(),
-                        "When specifying record attribute, \
-                    it can optionally be followed by the repr attribute, \
-                    which tells the macro how the value is \
-                    printed (similar to a format specifier). \
-                    e.g. repr = u8, prints the value as an u8",
-                    ));
-                    e
-                })?;
-                let content;
-                let _ = parenthesized!(content in input);
-                repr = Some(content.parse()?);
-            }
-            Ok(VariantMeta::Record { kw, record, repr })
-        } else if lookahead.peek(kw::subst) {
+            let val = input.parse()?;
+            Ok(StructMeta::RecName { kw, val })
+        } else if lookahead.peek(kw::rec_type) {
             let kw = input.parse()?;
             let _: Token![=] = input.parse()?;
-            let subst = input.parse()?;
-            Ok(VariantMeta::Subst { kw, subst })
+            let val = input.parse()?;
+            Ok(StructMeta::RecType { kw, val })
         } else {
             Err(lookahead.error())
         }
     }
+}
+
+#[derive(Debug, Clone)]
+enum FieldMeta {
+    RecName { kw: kw::rec_name, val: syn::LitStr },
+    RecType { kw: kw::rec_type, val: syn::LitStr },
+    RecField { kw: kw::field, val: syn::LitStr },
+    Repr { kw: kw::repr, val: syn::TypePath },
+    Fmt { kw: kw::fmt, val: syn::LitStr },
+    Subst { kw: kw::subst, val: syn::LitStr },
+}
+
+impl Parse for FieldMeta {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let lookahead = input.lookahead1();
+        //TODO: use match to enforce handling all variants
+        if lookahead.peek(kw::rec_name) {
+            let kw = input.parse()?;
+            let _: Token![=] = input.parse()?;
+            let val = input.parse()?;
+            Ok(FieldMeta::RecName { kw, val })
+        } else if lookahead.peek(kw::rec_type) {
+            let kw = input.parse()?;
+            let _: Token![=] = input.parse()?;
+            let val = input.parse()?;
+            Ok(FieldMeta::RecType { kw, val })
+        } else if lookahead.peek(kw::subst) {
+            let kw = input.parse()?;
+            let _: Token![=] = input.parse()?;
+            let val = input.parse()?;
+            Ok(FieldMeta::Subst { kw, val })
+        } else if lookahead.peek(kw::field) {
+            let kw = input.parse()?;
+            let _: Token![=] = input.parse()?;
+            let val = input.parse()?;
+            Ok(FieldMeta::RecField { kw, val })
+        } else if lookahead.peek(kw::repr) {
+            let kw = input.parse()?;
+            let _: Token![=] = input.parse()?;
+            let val = input.parse()?;
+            Ok(FieldMeta::Repr { kw, val })
+        } else if lookahead.peek(kw::fmt) {
+            let kw = input.parse()?;
+            let _: Token![=] = input.parse()?;
+            let val = input.parse()?;
+            Ok(FieldMeta::Fmt { kw, val })
+        } else {
+            Err(lookahead.error())
+        }
+    }
+}
+
+pub fn occurrence_error<T: ToTokens>(fst: T, snd: T, attr: &str) -> syn::Error {
+    let mut e = syn::Error::new_spanned(
+        snd,
+        format!("Found multiple occurrences of strum({})", attr),
+    );
+    e.combine(syn::Error::new_spanned(fst, "first one here"));
+    e
+}
+
+pub fn rec_def_error<T: ToTokens>(fst: T, snd: T, attr: &str) -> syn::Error {
+    let mut e = syn::Error::new_spanned(
+        snd,
+        format!(
+            "Global `{}` attribute defined, overriding is not possible",
+            attr
+        ),
+    );
+    e.combine(syn::Error::new_spanned(fst, "first one here"));
+    e
 }

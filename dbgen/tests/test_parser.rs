@@ -1,6 +1,5 @@
-use dbgen::{open_workbook, DataType, Parser};
+use dbgen::DataType;
 use dbgen_macros::{FromXlsxFloat, FromXlsxRow, FromXlsxString};
-use regex::Regex;
 
 #[test]
 fn test_parser1() {

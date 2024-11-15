@@ -25,6 +25,7 @@ use std::collections::HashMap;
 
 use calamine::{Cell, Data, Reader};
 
+#[allow(unused_imports)]
 #[cfg(feature = "derive")]
 use dbgen_macros::*;
 
@@ -88,7 +89,7 @@ impl<'a> ParserBuilder<'a> {
     }
 
     fn get_valid_tables(&self, sheet_name: &str) -> Vec<String> {
-        let table_names_in_sheet = self.workbook.table_names_in_sheet(&sheet_name);
+        let table_names_in_sheet = self.workbook.table_names_in_sheet(sheet_name);
         let mut res: Vec<String> = Vec::new();
         self.tables
             .iter()
@@ -273,12 +274,6 @@ struct XlsxLocation {
     context: Context, //TODO: This could maybe be replaced with a simple string.
 }
 
-impl XlsxLocation {
-    fn new(cell: Cell<Data>, context: Context) -> Self {
-        Self { cell, context }
-    }
-}
-
 impl std::fmt::Display for XlsxLocation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let (row, col) = self.cell.get_position();
@@ -294,6 +289,7 @@ impl std::fmt::Display for XlsxLocation {
 }
 
 //TODO: Decide if we need this, or can it be replaced with a simple String
+#[allow(dead_code)]
 #[derive(Debug)]
 enum Context {
     Sheet(String),

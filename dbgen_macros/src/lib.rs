@@ -2,8 +2,12 @@
 //!
 //! dbgen_macros is an internal macro crate that contains macro definitions for the dbgen library
 //!
+
+use syn::DeriveInput;
 mod as_record;
 mod xlsx;
+
+//TODO: Implement multiple occurences of same attr error!
 
 /// Convenience macro that implements FromXlsxString for marked type. It is used to automatically define functions needed
 /// to convert calamine::Data::String to target type.
@@ -43,7 +47,8 @@ pub fn derive_from_xlsx_row(input: proc_macro::TokenStream) -> proc_macro::Token
 /// `as_record` for type `EvrOutput` can be implemented manually.
 #[proc_macro_derive(AsRecord, attributes(dbgen, record, subst))]
 pub fn derive_as_record(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let ast = syn::parse(input).unwrap();
+    let ast = syn::parse_macro_input!(input as DeriveInput);
+    //let ast = syn::parse(input).unwrap();
     as_record::impl_derive_as_record(&ast)
         .unwrap_or_else(|err| err.into_compile_error())
         .into()
