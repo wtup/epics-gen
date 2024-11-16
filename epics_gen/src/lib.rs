@@ -1,23 +1,23 @@
-//! # dbgen
+//! # epics-gen
 //!
-//! dbgen is a set of helper macros that help developers create parsers for serializing xlsx spreadsheets
+//! epics-gen is a set of helper macros that help developers create parsers for serializing xlsx spreadsheets
 //! and deserializing them as EPICS PVs.
 //!
-//! # Including dbgen in Your Project
+//! # Including epics-gen in Your Project
 //!
-//! Import dbgen and `dbgen_macros` into your project by adding the following lines to your
-//! Cargo.toml. `dbgen_macros` contains the macros needed to derive all the traits in dbgen.
+//! Import `epics_gen` and `epics_gen_macros` into your project by adding the following lines to your
+//! Cargo.toml. `epics_gen_macros` contains the macros needed to derive all the traits in epics-gen.
 //!
 //! ```toml
 //! [dependencies]
-//! dbgen = "0.1"
-//! dbgen_macros = "0.1"
+//! epics_gen = "0.1"
+//! epics_gen_macros = "0.1"
 //!
 //! # Usage
 //!
 //! The following code is a usage example:
 //! ```rust
-//! let mut workbook: dbgen::XlsxWorkbook = dbgen::open_workbook("tests/test_parser1.xlsx")
+//! let mut workbook: epics-gen::XlsxWorkbook = epics-gen::open_workbook("tests/test_parser1.xlsx")
 //!     .expect("xlsx file for this test is missing!");
 //! ```
 
@@ -27,7 +27,7 @@ use calamine::{Cell, Data, Reader};
 
 #[allow(unused_imports)]
 #[cfg(feature = "derive")]
-use dbgen_macros::*;
+use epics_gen_macros::*;
 
 use regex::Regex;
 
@@ -306,7 +306,7 @@ impl std::fmt::Display for Context {
 }
 
 /// Interface that supports converting a single row in a table to a structure. This should be
-/// implemented from a derive macro (dbgen::FromXlsxRow)!
+/// implemented from a derive macro (epics_gen::FromXlsxRow)!
 ///
 ///
 /// For example, a table of 8 rows contains configuration for 8 `Prescalers`. To convert from a row

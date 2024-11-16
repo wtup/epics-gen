@@ -13,12 +13,15 @@ pub(super) fn impl_derive_as_record(
     {
         named
     } else {
-        unimplemented!();
+        return Err(syn::Error::new_spanned(
+            id,
+            "Annotated code is not a struct with punctuated fields.",
+        ));
     };
 
     let mut type_props = TypeProps::default();
 
-    let type_attrs: Vec<StructMeta> = get_metadata_inner("dbgen", &ast.attrs)?;
+    let type_attrs: Vec<StructMeta> = get_metadata_inner("record", &ast.attrs)?;
 
     // occurrence check for type attrs
     for meta in type_attrs {
@@ -42,7 +45,7 @@ pub(super) fn impl_derive_as_record(
         let id = &field.ident;
         let syn::Field { ref attrs, .. } = field;
 
-        let field_attrs: Vec<FieldMeta> = get_metadata_inner("dbgen", attrs)?;
+        let field_attrs: Vec<FieldMeta> = get_metadata_inner("record", attrs)?;
         let mut field_props = FieldProps::new(id.clone().unwrap());
 
         // Option 1: The field is annotated with a record and repr

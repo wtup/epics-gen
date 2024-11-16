@@ -1,2 +1,2 @@
 [workspace]
-members = ["dbgen", "dbgen_macros"]
+members = ["epics_gen", "epics_gen_macros"]

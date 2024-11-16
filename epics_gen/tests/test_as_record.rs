@@ -1,15 +1,15 @@
-use dbgen_macros::AsRecord;
+use epics_gen_macros::AsRecord;
 
 #[test]
-fn test_as_record_global() {
+fn test_as_record_single() {
     #[derive(AsRecord)]
-    #[dbgen(rec_name = "$(P)Voltage", rec_type = "ao")]
+    #[record(rec_name = "$(P)Voltage", rec_type = "ao")]
     struct TestStruct {
-        #[dbgen(field = "DESC")]
+        #[record(field = "DESC")]
         desc: &'static str,
-        #[dbgen(field = "EGU")]
+        #[record(field = "EGU")]
         egu: &'static str,
-        #[dbgen(field = "VAL")]
+        #[record(field = "VAL")]
         val: f64,
     }
 
@@ -31,17 +31,17 @@ fn test_as_record_global() {
 }
 
 #[test]
-fn test_as_record_local() {
+fn test_as_record_multiple() {
     #[derive(AsRecord)]
     struct TestStruct {
-        #[dbgen(rec_name = "$(P)Voltage", rec_type = "ao")]
-        #[dbgen(field = "VAL")]
+        #[record(rec_name = "$(P)Voltage", rec_type = "ao")]
+        #[record(field = "VAL")]
         voltage: f64,
-        #[dbgen(rec_name = "$(P)Current", rec_type = "ao")]
-        #[dbgen(field = "VAL")]
+        #[record(rec_name = "$(P)Current", rec_type = "ao")]
+        #[record(field = "VAL")]
         current: f64,
-        #[dbgen(rec_name = "$(P)SlewRate", rec_type = "ao")]
-        #[dbgen(field = "VAL")]
+        #[record(rec_name = "$(P)SlewRate", rec_type = "ao")]
+        #[record(field = "VAL")]
         slew_rate: f64,
     }
 
@@ -70,9 +70,9 @@ record(ao, "$(P)SlewRate") {
 fn test_as_record_fmt() {
     #[derive(AsRecord)]
     struct TestStruct {
-        #[dbgen(fmt = r#"record(waveform, "$(P)Label-I") {{ field(INP, "{{const:"{}"}}") }}"#)]
+        #[record(fmt = r#"record(waveform, "$(P)Label-I") {{ field(INP, "{{const:"{}"}}") }}"#)]
         txt: &'static str,
-        #[dbgen(fmt = r#"record(ao, "$(P)SomeOut") {{ field(VAL, "{}") }}"#)]
+        #[record(fmt = r#"record(ao, "$(P)SomeOut") {{ field(VAL, "{}") }}"#)]
         val: f64,
     }
 
@@ -109,13 +109,13 @@ fn test_as_record_named() {
 
     #[derive(AsRecord)]
     struct TestStruct {
-        #[dbgen(subst = "$(MxcId)")]
+        #[record(subst = "$(MxcId)")]
         name: MxcId,
-        #[dbgen(
+        #[record(
             fmt = r#"record(waveform, "$(P)$(MxcId)Label-I") {{ field(INP, "{{const:"{}"}}") }}"#
         )]
         txt: String,
-        #[dbgen(fmt = r#"record(ao, "$(P)$(MxcId)SomeOut") {{ field(VAL, "{}") }}"#)]
+        #[record(fmt = r#"record(ao, "$(P)$(MxcId)SomeOut") {{ field(VAL, "{}") }}"#)]
         val: f64,
     }
 
@@ -133,30 +133,40 @@ record(ao, "$(P)Mxc0SomeOut") { field(VAL, "0.5") }
     );
 }
 
-// // TODO: Add test for global record
-// #[test]
-// fn test_as_record_attr_parsing() {
-//     #[derive(Copy, Clone, Debug, Default, PartialEq)]
-//     pub enum MxcId {
-//         #[default]
-//         Mxc0,
-//     }
-//
-//     pub enum Pini {
-//         NO = 0,
-//         YES,
-//         RUN,
-//         RUNNING,
-//         PAUSE,
-//         PAUSED,
-//     }
-//
-//     impl std::fmt::Display for MxcId {
-//         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//             let res = match self {
-//                 MxcId::Mxc0 => "Mxc0",
-//             };
-//             write!(f, "{}", res)
-//         }
-//     }
-// }
+#[test]
+fn test_as_record_missing_attr() {
+    #[derive(Copy, Clone, Debug, Default, PartialEq)]
+    pub enum MxcId {
+        #[default]
+        Mxc0,
+    }
+
+    impl std::fmt::Display for MxcId {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let res = match self {
+                MxcId::Mxc0 => "Mxc0",
+            };
+            write!(f, "{}", res)
+        }
+    }
+
+    #[derive(AsRecord)]
+    struct TestStruct {
+        name: MxcId,
+        txt: String,
+        val: f64,
+    }
+
+    let test_struct = TestStruct {
+        name: MxcId::Mxc0,
+        txt: "Frac Syn".into(),
+        val: 0.5,
+    };
+
+    assert_eq!(
+        test_struct.as_record(),
+        r#"record(waveform, "$(P)Mxc0Label-I") { field(INP, "{const:"Frac Syn"}") }
+record(ao, "$(P)Mxc0SomeOut") { field(VAL, "0.5") }
+"#
+    );
+}

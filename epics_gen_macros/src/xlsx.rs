@@ -3,10 +3,10 @@ use quote::quote;
 pub(super) fn impl_derive_from_xstring(ast: &syn::DeriveInput) -> proc_macro2::TokenStream {
     let id = &ast.ident;
     let res = quote! {
-        impl TryFrom<dbgen::XlsxData> for #id {
-            type Error = dbgen::ParseErrorKind;
+        impl TryFrom<epics_gen::XlsxData> for #id {
+            type Error = epics_gen::ParseErrorKind;
 
-            fn try_from(value: dbgen::XlsxData) -> Result<Self, Self::Error> {
+            fn try_from(value: epics_gen::XlsxData) -> Result<Self, Self::Error> {
                 value
                     .get_string()
                     .ok_or_else(|| Self::Error::ValueMissing)?
@@ -23,10 +23,10 @@ pub(super) fn impl_derive_from_xfloat(
 ) -> syn::Result<proc_macro2::TokenStream> {
     let id = &ast.ident;
     let res = quote! {
-        impl TryFrom<dbgen::XlsxData> for #id {
-            type Error = dbgen::ParseErrorKind;
+        impl TryFrom<epics_gen::XlsxData> for #id {
+            type Error = epics_gen::ParseErrorKind;
 
-            fn try_from(value: dbgen::XlsxData) -> Result<Self, Self::Error> {
+            fn try_from(value: epics_gen::XlsxData) -> Result<Self, Self::Error> {
                 value
                     .get_float()
                     .ok_or_else(|| Self::Error::ValueMissing)?
@@ -86,8 +86,8 @@ pub(super) fn impl_derive_xlsx_row(
                     #id: {
                         let val = row.pop().unwrap();
                         let res = match #inner_type::try_from(val.clone()) {
-                            Err(dbgen::ParseErrorKind::ValueMissing) => None,
-                            v => Some(v.map_err(|kind| dbgen::ParseError::new_in_table(kind,dbgen::XlsxCell::new((row_num as u32, #i as u32), val), table_name.to_owned()))?),
+                            Err(epics_gen::ParseErrorKind::ValueMissing) => None,
+                            v => Some(v.map_err(|kind| epics_gen::ParseError::new_in_table(kind,epics_gen::XlsxCell::new((row_num as u32, #i as u32), val), table_name.to_owned()))?),
                         };
                         res
                     }
@@ -97,7 +97,7 @@ pub(super) fn impl_derive_xlsx_row(
                 quote! {
                     #id: {
                         let val = row.pop().unwrap();
-                        val.clone().try_into().map_err(|kind| dbgen::ParseError::new_in_table(kind,dbgen::XlsxCell::new((row_num as u32, #i as u32), val), table_name.to_owned()))?
+                        val.clone().try_into().map_err(|kind| epics_gen::ParseError::new_in_table(kind,epics_gen::XlsxCell::new((row_num as u32, #i as u32), val), table_name.to_owned()))?
                     }
                 }
             };
@@ -105,11 +105,11 @@ pub(super) fn impl_derive_xlsx_row(
         }
     }
     let res = quote! {
-        impl dbgen::FromXlsxRow for #id
+        impl epics_gen::FromXlsxRow for #id
         where Self: Sized {
-            type Error = dbgen::ParseError;
-            fn from_xlsx_row(row: dbgen::XlsxRow, row_num: usize, table_name:&str)
-            -> ::std::result::Result<Self, dbgen::ParseError> {
+            type Error = epics_gen::ParseError;
+            fn from_xlsx_row(row: epics_gen::XlsxRow, row_num: usize, table_name:&str)
+            -> ::std::result::Result<Self, epics_gen::ParseError> {
                 let mut row = row.clone();
                 row.reverse();
                 Ok(Self {

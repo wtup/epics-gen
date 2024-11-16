@@ -1,25 +1,25 @@
 [package]
-name = "dbgen"
+name = "epics_gen"
 version = "0.1.0"
 edition = "2021"
 
 description = "Helpful macros for deserializing xlsx tables and serializing them as EPICS PVs"
 keywords = ["EPICS", "xlsx", "macros", "proc-macros"]
 categories = ["development-tools::procedural-macro-helpers", "parsing"]
-# documentation = "https://docs.rs/serpics"
-# homepage = "https://github.com/wtup/serpics"
-# repository = "https://github.com/wtup/serpics"
-# readme = "../README.md"
-# license = "MIT"
+documentation = "https://docs.rs/epics-gen"
+homepage = "https://github.com/wtup/epics-gen"
+repository = "https://github.com/wtup/epics-gen"
+readme = "../README.md"
+license = "MIT"
 
 [dependencies]
 calamine = "0.26.1"
 regex = "1.11.0"
-dbgen_macros = { path = "../dbgen_macros", optional = true }
+epics_gen_macros = { path = "../epics_gen_macros", optional = true }
 
 [features]
 default = ["derive"]
-derive = ["dbgen_macros"]
+derive = ["epics_gen_macros"]
 
 [dev-dependencies]
 strum = "0.26"

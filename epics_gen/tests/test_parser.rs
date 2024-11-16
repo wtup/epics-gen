@@ -1,5 +1,5 @@
-use dbgen::DataType;
-use dbgen_macros::{FromXlsxFloat, FromXlsxRow, FromXlsxString};
+use epics_gen::DataType;
+use epics_gen_macros::{FromXlsxFloat, FromXlsxRow, FromXlsxString};
 
 #[test]
 fn test_parser1() {
@@ -36,10 +36,10 @@ fn test_parser1() {
         }
     }
 
-    let mut workbook: dbgen::XlsxWorkbook = dbgen::open_workbook("tests/test_parser1.xlsx")
+    let mut workbook: epics_gen::XlsxWorkbook = epics_gen::open_workbook("tests/test_parser1.xlsx")
         .expect("xlsx file for this test is missing!");
 
-    let parser = dbgen::ParserBuilder::new(&mut workbook)
+    let parser = epics_gen::ParserBuilder::new(&mut workbook)
         .add_sheet("Sheet1")
         .add_table("test_table_1")
         .build();

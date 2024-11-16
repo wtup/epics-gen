@@ -1,5 +1,5 @@
-use dbgen::{DataType, FromXlsxRow, XlsxData};
-use dbgen_macros::{FromXlsxFloat, FromXlsxRow, FromXlsxString};
+use epics_gen::{DataType, FromXlsxRow, XlsxData};
+use epics_gen_macros::{FromXlsxFloat, FromXlsxRow, FromXlsxString};
 
 #[derive(FromXlsxString, strum_macros::EnumString, PartialEq, Eq, Debug)]
 enum TestEnum {
@@ -14,10 +14,10 @@ fn test_from_xlsx_string() {
     assert!(matches!(result, Ok(t) if t == TestEnum::Third));
 
     let result = TestEnum::try_from(XlsxData::String("ThrowError".into()));
-    assert!(matches!(result, Err(t) if t == dbgen::ParseErrorKind::InvalidValue));
+    assert!(matches!(result, Err(t) if t == epics_gen::ParseErrorKind::InvalidValue));
 
     let result = TestEnum::try_from(XlsxData::Empty);
-    assert!(matches!(result, Err(t) if t == dbgen::ParseErrorKind::ValueMissing));
+    assert!(matches!(result, Err(t) if t == epics_gen::ParseErrorKind::ValueMissing));
 }
 
 #[derive(FromXlsxFloat, PartialEq, Debug)]
@@ -35,10 +35,10 @@ fn test_from_xlsx_float() {
     assert!(matches!(result, Ok(t) if t == TestFloat(0.1)));
 
     let result = TestFloat::try_from(XlsxData::String("ThrowError".into()));
-    assert!(matches!(result, Err(t) if t == dbgen::ParseErrorKind::ValueMissing));
+    assert!(matches!(result, Err(t) if t == epics_gen::ParseErrorKind::ValueMissing));
 
     let result = TestFloat::try_from(XlsxData::Empty);
-    assert!(matches!(result, Err(t) if t == dbgen::ParseErrorKind::ValueMissing));
+    assert!(matches!(result, Err(t) if t == epics_gen::ParseErrorKind::ValueMissing));
 }
 
 #[test]

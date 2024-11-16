@@ -1,6 +1,6 @@
-//! # dbgen_macros
+//! # epics_gen_macros
 //!
-//! dbgen_macros is an internal macro crate that contains macro definitions for the dbgen library
+//! epics_gen_macros is an internal macro crate that contains macro definitions for the epics_gen library
 //!
 
 use syn::DeriveInput;
@@ -45,7 +45,7 @@ pub fn derive_from_xlsx_row(input: proc_macro::TokenStream) -> proc_macro::Token
 /// Returns struct in form of EPICS records. Usually the `as_record` is implemented by `AsRecord`
 /// derive proc_macro, but if some additional bussiness logic needs to be implemented, the
 /// `as_record` for type `EvrOutput` can be implemented manually.
-#[proc_macro_derive(AsRecord, attributes(dbgen, record, subst))]
+#[proc_macro_derive(AsRecord, attributes(record))]
 pub fn derive_as_record(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ast = syn::parse_macro_input!(input as DeriveInput);
     //let ast = syn::parse(input).unwrap();
