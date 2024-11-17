@@ -19,7 +19,7 @@ pub(super) fn impl_derive_as_record(
         ));
     };
 
-    let mut type_props = TypeProps::default();
+    let mut type_props = TypeProps::new(id.clone());
 
     let type_attrs: Vec<StructMeta> = get_metadata_inner("record", &ast.attrs)?;
 
@@ -120,8 +120,10 @@ mod kw {
 }
 
 /// Attributes that appear through the whole type
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 struct TypeProps {
+    /// struct identifier
+    pub ident: syn::Ident,
     /// `rec_name` attribute appearing on the top of the type(struct)
     pub type_rec_name: Option<(kw::rec_name, LitStr)>,
     /// `rec_type` attribute appearing on the top of the type(struct)
@@ -130,10 +132,19 @@ struct TypeProps {
 }
 
 impl TypeProps {
+    pub fn new(ident: syn::Ident) -> Self {
+        Self {
+            ident,
+            type_rec_name: Default::default(),
+            type_rec_type: Default::default(),
+            fields: Default::default(),
+        }
+    }
+
     pub fn generate(&self) -> syn::Result<proc_macro2::TokenStream> {
         match (&self.type_rec_name, &self.type_rec_type) {
-            (Some((_, rname)), Some((_, rtype))) => self.generate_global(rname, rtype),
-            (None, None) => self.generate_local(),
+            (Some((_, rname)), Some((_, rtype))) => self.generate_single_record(rname, rtype),
+            (None, None) => self.generate_multiple_records(),
             (None, Some((kw, _))) => Err(syn::Error::new_spanned(
                 kw,
                 "global rec_type undefined".to_string(),
@@ -145,7 +156,7 @@ impl TypeProps {
         }
     }
 
-    fn generate_global(
+    fn generate_single_record(
         &self,
         rec_name: &LitStr,
         rec_type: &LitStr,
@@ -234,10 +245,23 @@ impl TypeProps {
             }
         })
     }
-    fn generate_local(&self) -> syn::Result<proc_macro2::TokenStream> {
+
+    fn generate_multiple_records(&self) -> syn::Result<proc_macro2::TokenStream> {
         let mut subst = quote! {};
         let mut idents: Vec<proc_macro2::TokenStream> = Vec::new();
         let mut record = String::new();
+
+        if self
+            .fields
+            .iter()
+            .all(|field| field.rec_name.is_none() && field.format.is_none())
+        {
+            return Err(syn::Error::new_spanned(
+                &self.ident,
+                "type cannot be used in this context without defining `rec_name`, `rec_type` or `fmt` attributes"
+                    .to_string(),
+            ));
+        }
 
         for field in &self.fields {
             let ident = &field.ident;
@@ -263,6 +287,7 @@ impl TypeProps {
                 syn::parse_str::<proc_macro2::TokenStream>(&format!("self.{}", ident)).unwrap()
             };
 
+            eprintln!("multiple_records");
             // Handle `fmt` attribute
             if let Some((_, val)) = &field.format {
                 record.push_str(&val.value());
