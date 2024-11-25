@@ -132,4 +132,3 @@ record(ao, "$(P)Mxc0SomeOut") { field(VAL, "0.5") }
 "#
     );
 }
-

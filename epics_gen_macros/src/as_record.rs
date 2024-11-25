@@ -287,7 +287,6 @@ impl TypeProps {
                 syn::parse_str::<proc_macro2::TokenStream>(&format!("self.{}", ident)).unwrap()
             };
 
-            eprintln!("multiple_records");
             // Handle `fmt` attribute
             if let Some((_, val)) = &field.format {
                 record.push_str(&val.value());
