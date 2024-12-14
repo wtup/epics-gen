@@ -1,3 +1,9 @@
+//! # as_record
+//!
+//! `as_record` is a macro that automatically implements an `as_record` member on a struct, to
+//! enable serialization of structs into EPICS PVs.
+//!
+
 use quote::{quote, ToTokens};
 use syn::{parse::Parse, punctuated::Punctuated, Attribute, LitStr, Token, TypePath};
 

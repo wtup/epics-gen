@@ -1,7 +1,15 @@
 //! # epics-gen
 //!
-//! epics-gen is a set of helper macros that help developers create parsers for serializing xlsx spreadsheets
-//! and deserializing them as EPICS PVs.
+//! epics-gen is a set of helper macros that help developers create parsers for serializing xlsx
+//! spreadsheets into data structures and deserializing them as EPICS PVs.
+//!
+//! Macros exposed by this library:
+//! - [`FromXlsxRow`]: implements support for converting xlsx rows into structures (deserialize)
+//!   - [`FromXlsxString`]: implements [FromXlsxData] trait for xlsx
+//!     conversion from `XlsxString` type to target type
+//!   - [`FromXlsxFloat`]: implements [FromXlsxData] trait for
+//!     conversion from `XlsxFloat` type to target type
+//! - [`AsRecord`]: implements support for printing the record (serialize)
 //!
 //! # Including epics-gen in Your Project
 //!
@@ -12,14 +20,135 @@
 //! [dependencies]
 //! epics_gen = "0.1"
 //! epics_gen_macros = "0.1"
-//!
-//! # Usage
-//!
-//! The following code is a usage example:
-//! ```rust
-//! let mut workbook: epics-gen::XlsxWorkbook = epics-gen::open_workbook("tests/test_parser1.xlsx")
-//!     .expect("xlsx file for this test is missing!");
 //! ```
+//!
+//! # Deserialization
+//!
+//! Note that an external library [`calamine`] is used to read and store `xlsx` files and
+//! data. The used structures and functions from calamine are reexported in this crate convenience.
+//! See `Type Aliases` for more information.
+//!
+//! The following code is a xlsx deserializing example:
+//!
+//! ```
+//! use epics_gen::FromXlsxData;
+//!
+//! let mut workbook: epics_gen::XlsxWorkbook = epics_gen::open_workbook("tests/test_parser1.xlsx")
+//!     .expect("xlsx file for this test is missing!");
+//!
+//! let parser = epics_gen::ParserBuilder::new(&mut workbook)
+//!     .add_sheet("Sheet1")
+//!     .add_table("test_table_1")
+//!     .build();
+//!
+//!
+//! #[derive(epics_gen::FromXlsxRow, Debug, PartialEq)]
+//! struct TargetStruct {
+//!    row_id: String,
+//!    float1: f64,
+//!    float2: f64,
+//! }
+//!
+//! let parsed: Vec<TargetStruct> = parser.parse();
+//! ```
+//! Note that the struct members must implement traits that enable conversion from Xlsx types to
+//! target type. See [`FromXlsxData`] trait for more details (and the macros that
+//! automatically implement it).
+//!
+//! and this an example of serializing structures to PVs:
+//!
+//! ```rust
+//! use epics_gen::AsRecord;
+//!
+//! #[derive(AsRecord)]
+//! #[record(rec_name = "$(P)Voltage", rec_type = "ao")]
+//! struct TestStruct {
+//!     #[record(field = "DESC")]
+//!     desc: &'static str,
+//!     #[record(field = "EGU")]
+//!     egu: &'static str,
+//!     #[record(field = "VAL")]
+//!     val: f64,
+//! }
+//!
+//! let test_struct = TestStruct {
+//!     desc: "Output Voltage",
+//!     egu: "V",
+//!     val: 0.5,
+//! };
+//!
+//! assert_eq!(
+//!     test_struct.as_record(),
+//!     r#"record(ao, "$(P)Voltage") {
+//!   field(DESC, "Output Voltage")
+//!   field(EGU, "V")
+//!   field(VAL, "0.5")
+//! }
+//! "#);
+//! ```
+//! see [`AsRecord`] for more details.
+//!
+//! # Serialization
+//!
+//! To serialize struct the `AsRecord` macro is used. It comes with attributes to help the user
+//! define EPICS PVs for printing.
+//!
+//! ## Attributes
+//!
+//! To use the `AsRecord` macro, these attributes need to be defined:
+//!
+//! - record name: `#[record(rec_name = "<record_name>")]` (e.g.: "$(P)Voltage")
+//! - record type: `#[record(rec_type = "<record_type>")]` (e.g.: "ao")
+//! - record field: `#[record(field = "<field>")]` (e.g.: "DESC")
+//!
+//! Optional attributes:
+//!
+//! - subst: `#[record(subst = "<pattern>")]`; substitutes a pattern in other fields. Similar to EPICS
+//!   macro definitions.
+//! - fmt: `#[record(fmt = "<user_defined_string>"]`; overrides other attributes and lets the user
+//!   define a custom output.
+//!   (e.g.: `#[record(fmt = r#"record(ao, "$(P):Voltage"){field(VAL, "{{}}")"#]`)
+//! - repr: `#[record(repr = <type>)]`; convert to type before printing the value; (e.g.: `#[record(repr = u32)]`)
+//!
+//! ## Usage
+//!
+//! The mandatory attributes `name` and `field` can be either set on the whole structure (global)
+//! or on a per field basis (local), which allows defining more records per struct.
+//!
+//! Global record definition example:
+//!
+//! ```ignore
+//! #[derive(AsRecord)]
+//! #[record(rec_name = "$(P)Voltage", rec_type = "ao")]
+//! struct TestStruct {
+//! #[record(field = "DESC")]
+//! desc: &'static str,
+//! #[record(field = "EGU")]
+//! egu: &'static str,
+//! #[record(field = "VAL")]
+//! val: f64,
+//! }
+//! ```
+//!
+//! local record definition example:
+//!
+//! ```ignore
+//! #[derive(AsRecord)]
+//! struct TestStruct {
+//!     #[record(rec_name = "$(P)Voltage", rec_type = "ao")]
+//!     #[record(field = "VAL")]
+//!     voltage: f64,
+//!     #[record(rec_name = "$(P)Current", rec_type = "ao")]
+//!     #[record(field = "VAL")]
+//!     current: f64,
+//!     #[record(rec_name = "$(P)SlewRate", rec_type = "ao")]
+//!     #[record(field = "VAL")]
+//!     slew_rate: f64,
+//! }
+//! ```
+//!
+//! See tests for usage examples of other attributes.
+//!
 
 use std::collections::HashMap;
 
@@ -27,7 +156,7 @@ use calamine::{Cell, Data, Reader};
 
 #[allow(unused_imports)]
 #[cfg(feature = "derive")]
-use epics_gen_macros::*;
+pub use epics_gen_macros::*;
 
 use regex::Regex;
 
@@ -45,6 +174,11 @@ pub type XlsxRow = Vec<XlsxData>;
 pub type XlsxCell = calamine::Cell<XlsxData>;
 pub use calamine::open_workbook;
 
+/// Builder for parsers.
+///
+/// This is used to build parsers of excel tables. Use [`add_tables`](Self::add_tables) and
+/// [`add_sheets`](Self::add_sheets) to specify which tables it needs to parse and
+/// which sheets to find them in.
 pub struct ParserBuilder<'a> {
     workbook: &'a mut XlsxWorkbook,
     sheets: Vec<Entry>,
@@ -57,6 +191,7 @@ enum Entry {
 }
 
 impl<'a> ParserBuilder<'a> {
+    /// Construct new parser builder.
     pub fn new(workbook: &'a mut calamine::Xlsx<std::io::BufReader<std::fs::File>>) -> Self {
         workbook
             .load_tables()
@@ -68,21 +203,25 @@ impl<'a> ParserBuilder<'a> {
         }
     }
 
+    /// Adds single sheet to parser.
     pub fn add_sheet(mut self, sheet: impl Into<String>) -> Self {
         self.sheets.push(Entry::String(sheet.into()));
         self
     }
 
+    /// Adds a pattern which is expanded to matched sheet names in the workbook.
     pub fn add_sheets(mut self, sheet_pattern: Regex) -> Self {
         self.sheets.push(Entry::Regex(sheet_pattern));
         self
     }
 
+    /// Adds single table to parser.
     pub fn add_table(mut self, table: impl Into<String>) -> Self {
         self.tables.push(Entry::String(table.into()));
         self
     }
 
+    /// Adds a pattern which is expanded to matched table names in the workbook.
     pub fn add_tables(mut self, table_pattern: Regex) -> Self {
         self.tables.push(Entry::Regex(table_pattern));
         self
@@ -108,6 +247,7 @@ impl<'a> ParserBuilder<'a> {
         res
     }
 
+    // Builds the parser.
     pub fn build(self) -> Parser<'a> {
         let mut sheets: HashMap<String, Vec<String>> = HashMap::new();
         let sheet_names = self.workbook.sheet_names();
@@ -138,10 +278,8 @@ impl<'a> ParserBuilder<'a> {
     }
 }
 
-// First state of the Parser is just creating it with a reference to workbook
-// Second state of parser is adding a sheet and table
-// Third state of parser is parsing the sheets
-// Final state of parser is returning a map of sheets with their associated objects
+/// Parser structure. It's only purpose is to call [`parse`](Self::parse) and convert tables into a
+/// vector of user defined structs.
 pub struct Parser<'a> {
     workbook: &'a mut XlsxWorkbook,
     sheets: HashMap<String, Vec<String>>,
@@ -177,6 +315,7 @@ impl<'a> Parser<'a> {
         res
     }
 
+    /// Parse tables to struct.
     pub fn parse<O: FromXlsxRow>(mut self) -> Vec<O>
     where
         <O as FromXlsxRow>::Error: std::fmt::Display,
@@ -288,7 +427,7 @@ impl std::fmt::Display for XlsxLocation {
     }
 }
 
-//TODO: Decide if we need this, or can it be replaced with a simple String
+//TODO: Decide if this is needed, or if it can be replaced with a simple String
 #[allow(dead_code)]
 #[derive(Debug)]
 enum Context {
@@ -306,14 +445,12 @@ impl std::fmt::Display for Context {
 }
 
 /// Interface that supports converting a single row in a table to a structure. This should be
-/// implemented from a derive macro (epics_gen::FromXlsxRow)!
+/// implemented from a derive macro [FromXlsxRow](epics_gen_macros::FromXlsxRow)!
 ///
 ///
 /// For example, a table of 8 rows contains configuration for 8 `Prescalers`. To convert from a row
 /// of data to a `Prescaler` structure this trait needs to be implemented on the `Prescaler`
-/// struct.
-///
-// TODO: Modify this description
+/// struct via `FromXlsxRow`.
 pub trait FromXlsxRow
 where
     Self: Sized,
@@ -327,6 +464,10 @@ where
     ) -> std::result::Result<Self, Self::Error>;
 }
 
+/// Interface that is used to convert XlsxData to target type.
+///
+/// This trait is used when traversing the XlsxRow and converting each cell to associated struct
+/// member types.
 pub trait FromXlsxData
 where
     Self: Sized,

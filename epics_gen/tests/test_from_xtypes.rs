@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use epics_gen::{DataType, FromXlsxData, FromXlsxRow, XlsxData};
-use epics_gen_macros::{FromXlsxFloat, FromXlsxRow, FromXlsxString};
+use epics_gen_macros::{FromXlsxFloat, FromXlsxString};
 
 #[derive(FromXlsxString, strum_macros::EnumString, PartialEq, Eq, Debug)]
 enum TestEnum {
