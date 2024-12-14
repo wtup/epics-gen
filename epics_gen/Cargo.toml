@@ -13,10 +13,10 @@ readme = "../README.md"
 license = "MIT"
 
 [dependencies]
+epics_gen_macros = { path = "../epics_gen_macros", optional = true, version = "0.1.0" }
+
 calamine = "0.26.1"
 regex = "1.11.0"
-epics_gen_macros = { path = "../epics_gen_macros", optional = true }
-
 [features]
 default = ["derive"]
 derive = ["epics_gen_macros"]
