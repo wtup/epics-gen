@@ -1,15 +1,7 @@
 //! # epics-gen
 //!
-//! epics-gen is a set of helper macros that help developers create parsers for serializing xlsx
+//! epics-gen is a set of helper macros that helps create parsers for serializing xlsx
 //! spreadsheets into data structures and deserializing them as EPICS PVs.
-//!
-//! Macros exposed by this library:
-//! - [`FromXlsxRow`]: implements support for converting xlsx rows into structures (deserialize)
-//!   - [`FromXlsxString`]: implements [FromXlsxData] trait for xlsx
-//!     conversion from `XlsxString` type to target type
-//!   - [`FromXlsxFloat`]: implements [FromXlsxData] trait for
-//!     conversion from `XlsxFloat` type to target type
-//! - [`AsRecord`]: implements support for printing the record (serialize)
 //!
 //! # Including epics-gen in Your Project
 //!
