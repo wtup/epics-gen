@@ -3,11 +3,11 @@ use quote::quote;
 pub(super) fn impl_derive_from_xstring(ast: &syn::DeriveInput) -> proc_macro2::TokenStream {
     let id = &ast.ident;
     let res = quote! {
-        impl TryFrom<epics_gen::XlsxData> for #id {
+        impl FromXlsxData for #id {
             type Error = epics_gen::ParseErrorKind;
 
-            fn try_from(value: epics_gen::XlsxData) -> Result<Self, Self::Error> {
-                value
+            fn from_xlsx_data(data: epics_gen::XlsxData) -> Result<Self, Self::Error> {
+                data
                     .get_string()
                     .ok_or_else(|| Self::Error::ValueMissing)?
                     .try_into()
@@ -23,11 +23,11 @@ pub(super) fn impl_derive_from_xfloat(
 ) -> syn::Result<proc_macro2::TokenStream> {
     let id = &ast.ident;
     let res = quote! {
-        impl TryFrom<epics_gen::XlsxData> for #id {
+        impl FromXlsxData for #id {
             type Error = epics_gen::ParseErrorKind;
 
-            fn try_from(value: epics_gen::XlsxData) -> Result<Self, Self::Error> {
-                value
+            fn from_xlsx_data(data: epics_gen::XlsxData) -> Result<Self, Self::Error> {
+                data
                     .get_float()
                     .ok_or_else(|| Self::Error::ValueMissing)?
                     .try_into()
@@ -62,13 +62,6 @@ pub(super) fn impl_derive_xlsx_row(
         let id = &field.ident;
         let ty = &field.ty;
 
-        let mut single_element = quote! {
-            {
-                let val = row.pop().unwrap();
-                val.clone().try_into().map_err(|kind| epics_gen::ParseError::new_in_table(kind,epics_gen::XlsxCell::new((row_num as u32, #i as u32), val), table_name.to_owned()))?
-            }
-        };
-
         let (type_len, ty): (usize, &syn::Type) = match ty {
             syn::Type::Array(syn::TypeArray { elem, .. }) => {
                 let (type_len, _) = destructure_array(ty)?;
@@ -77,12 +70,19 @@ pub(super) fn impl_derive_xlsx_row(
             _ => (1, ty),
         };
 
+        let mut single_element = quote! {
+            {
+                let val = row.pop().unwrap();
+                #ty::from_xlsx_data(val.clone()).map_err(|kind| epics_gen::ParseError::new_in_table(kind,epics_gen::XlsxCell::new((row_num as u32, #i as u32), val), table_name.to_owned()))?
+            }
+        };
+
         if extern_type_is(ty, "Option") {
             let inner_type = extract_generic_type(ty)?;
             single_element = quote! {
                 {
                     let val = row.pop().unwrap();
-                    match #inner_type::try_from(val.clone()) {
+                    match #inner_type::from_xlsx_data(val.clone()) {
                         Err(epics_gen::ParseErrorKind::ValueMissing) => None,
                         v => Some(v.map_err(|kind| epics_gen::ParseError::new_in_table(kind,epics_gen::XlsxCell::new((row_num as u32, #i as u32), val), table_name.to_owned()))?),
                     }

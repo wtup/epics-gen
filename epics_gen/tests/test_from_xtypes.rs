@@ -1,4 +1,6 @@
-use epics_gen::{DataType, FromXlsxRow, XlsxData};
+use std::str::FromStr;
+
+use epics_gen::{DataType, FromXlsxData, FromXlsxRow, XlsxData};
 use epics_gen_macros::{FromXlsxFloat, FromXlsxRow, FromXlsxString};
 
 #[derive(FromXlsxString, strum_macros::EnumString, PartialEq, Eq, Debug)]
@@ -10,13 +12,13 @@ enum TestEnum {
 
 #[test]
 fn test_from_xlsx_string() {
-    let result = TestEnum::try_from(XlsxData::String("Fourth".into()));
+    let result = TestEnum::from_xlsx_data(XlsxData::String("Third".into()));
     assert!(matches!(result, Ok(t) if t == TestEnum::Third));
 
-    let result = TestEnum::try_from(XlsxData::String("ThrowError".into()));
+    let result = TestEnum::from_xlsx_data(XlsxData::String("ThrowError".into()));
     assert!(matches!(result, Err(t) if t == epics_gen::ParseErrorKind::InvalidValue));
 
-    let result = TestEnum::try_from(XlsxData::Empty);
+    let result = TestEnum::from_xlsx_data(XlsxData::Empty);
     assert!(matches!(result, Err(t) if t == epics_gen::ParseErrorKind::ValueMissing));
 }
 
@@ -31,14 +33,23 @@ impl From<f64> for TestFloat {
 
 #[test]
 fn test_from_xlsx_float() {
-    let result = TestFloat::try_from(XlsxData::Float(0.1));
+    let result = TestFloat::from_xlsx_data(XlsxData::Float(0.1));
     assert!(matches!(result, Ok(t) if t == TestFloat(0.1)));
 
-    let result = TestFloat::try_from(XlsxData::String("ThrowError".into()));
+    let result = TestFloat::from_xlsx_data(XlsxData::String("ThrowError".into()));
     assert!(matches!(result, Err(t) if t == epics_gen::ParseErrorKind::ValueMissing));
 
-    let result = TestFloat::try_from(XlsxData::Empty);
+    let result = TestFloat::from_xlsx_data(XlsxData::Empty);
     assert!(matches!(result, Err(t) if t == epics_gen::ParseErrorKind::ValueMissing));
+}
+
+#[test]
+fn test_to_primitive() {
+    let result = String::from_xlsx_data(XlsxData::String("Third".into()));
+    assert!(matches!(result, Ok(t) if t == String::from_str("Third").unwrap()));
+
+    let result = f64::from_xlsx_data(XlsxData::Float(0.1));
+    assert!(matches!(result, Ok(t) if t == 0.1f64));
 }
 
 #[test]

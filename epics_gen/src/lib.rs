@@ -326,3 +326,30 @@ where
         table_name: &str,
     ) -> std::result::Result<Self, Self::Error>;
 }
+
+pub trait FromXlsxData
+where
+    Self: Sized,
+{
+    type Error;
+
+    fn from_xlsx_data(data: XlsxData) -> Result<Self, Self::Error>;
+}
+
+impl FromXlsxData for f64 {
+    type Error = ParseErrorKind;
+
+    fn from_xlsx_data(data: XlsxData) -> Result<Self, Self::Error> {
+        data.get_float().ok_or(Self::Error::ValueMissing)
+    }
+}
+
+impl FromXlsxData for String {
+    type Error = ParseErrorKind;
+
+    fn from_xlsx_data(data: XlsxData) -> Result<Self, Self::Error> {
+        data.get_string()
+            .map(String::from)
+            .ok_or(Self::Error::ValueMissing)
+    }
+}

@@ -1,4 +1,4 @@
-use epics_gen::DataType;
+use epics_gen::{DataType, FromXlsxData};
 use epics_gen_macros::{FromXlsxFloat, FromXlsxRow, FromXlsxString};
 #[derive(FromXlsxString, strum_macros::EnumString, PartialEq, Eq, Debug)]
 enum RowId {
