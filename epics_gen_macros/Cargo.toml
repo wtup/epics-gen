@@ -2,6 +2,16 @@
 name = "epics_gen_macros"
 version = "0.1.0"
 edition = "2021"
+authors = ["Luka Perusko <luka.wtup@gmail.com>"]
+
+description = "Helpful macros for deserializing xlsx tables and serializing them as EPICS PVs"
+keywords = ["EPICS", "xlsx", "macros", "proc-macros"]
+categories = ["development-tools::procedural-macro-helpers", "parsing"]
+documentation = "https://docs.rs/epics-gen"
+homepage = "https://github.com/wtup/epics-gen"
+repository = "https://github.com/wtup/epics-gen"
+readme = "../README.md"
+license = "MIT"
 
 [lib]
 proc-macro = true

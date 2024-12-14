@@ -2,6 +2,7 @@
 name = "epics_gen"
 version = "0.1.0"
 edition = "2021"
+authors = ["Luka Perusko <luka.wtup@gmail.com>"]
 
 description = "Helpful macros for deserializing xlsx tables and serializing them as EPICS PVs"
 keywords = ["EPICS", "xlsx", "macros", "proc-macros"]
