@@ -1,6 +1,6 @@
 [package]
 name = "epics_gen"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Luka Perusko <luka.wtup@gmail.com>"]
 
@@ -15,9 +15,9 @@ license = "MIT"
 
 [dependencies]
 epics_gen_macros = { path = "../epics_gen_macros", optional = true, version = "0.1.0" }
-
 calamine = "0.26.1"
 regex = "1.11.0"
+
 [features]
 default = ["derive"]
 derive = ["epics_gen_macros"]
