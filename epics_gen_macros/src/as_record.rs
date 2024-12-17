@@ -284,13 +284,14 @@ impl TypeProps {
             // Handle `repr` attribute
             let ident_repr = if let Some((_, val)) = &field.repr {
                 syn::parse_str::<proc_macro2::TokenStream>(&format!(
-                    "self.{} as {}",
+                    "self.{}.clone() as {}",
                     ident,
                     val.path.get_ident().unwrap()
                 ))
                 .unwrap()
             } else {
-                syn::parse_str::<proc_macro2::TokenStream>(&format!("self.{}", ident)).unwrap()
+                syn::parse_str::<proc_macro2::TokenStream>(&format!("self.{}.clone()", ident))
+                    .unwrap()
             };
 
             // Handle `fmt` attribute

@@ -132,3 +132,30 @@ record(ao, "$(P)Mxc0SomeOut") { field(VAL, "0.5") }
 "#
     );
 }
+
+#[test]
+fn test_as_record_repr() {
+    #[derive(Clone, Debug, Default, PartialEq)]
+    enum MxcId {
+        #[default]
+        Mxc0,
+        Mxc1,
+        Mxc2,
+    }
+
+    #[derive(AsRecord)]
+    struct TestStruct {
+        #[record(rec_name = "TestRec", rec_type = "ao", field = "VAL", repr = u8)]
+        name: MxcId,
+    }
+
+    let test_struct = TestStruct { name: MxcId::Mxc2 };
+
+    assert_eq!(
+        test_struct.as_record(),
+        r#"record(ao, "TestRec") {
+  field(VAL, "2")
+}
+"#
+    );
+}
