@@ -287,7 +287,6 @@ impl<'a> Parser<'a> {
                 table_name,
             )
         })?;
-        println!("{:?}", table.data());
 
         let rows = table.data().rows();
 
