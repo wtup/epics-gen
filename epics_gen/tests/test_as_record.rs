@@ -158,4 +158,14 @@ fn test_as_record_repr() {
 }
 "#
     );
+
+    let test_struct = TestStruct { name: MxcId::Mxc1 };
+
+    assert_eq!(
+        test_struct.as_record(),
+        r#"record(ao, "TestRec") {
+  field(VAL, "1")
+}
+"#
+    );
 }

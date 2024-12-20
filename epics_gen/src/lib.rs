@@ -104,7 +104,7 @@
 //!
 //! ## Usage
 //!
-//! The mandatory attributes `name` and `field` can be either set on the whole structure (global)
+//! The mandatory attributes `name` and `type` can be either set on the whole structure (global)
 //! or on a per field basis (local), which allows defining more records per struct.
 //!
 //! Global record definition example:
@@ -278,47 +278,35 @@ pub struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    fn parse_by_rows<O: FromXlsxRow>(&mut self, table_name: String) -> Vec<O>
-    where
-        <O as FromXlsxRow>::Error: std::fmt::Display,
-    {
+    fn parse_by_rows<O: FromXlsxRow>(&mut self, table_name: String) -> Result<Vec<O>, ParseError> {
         let mut res = Vec::new();
-        let table = self
-            .workbook
-            .table_by_name(&table_name)
-            .unwrap_or_else(|e| panic!("Invalid table name {}", e));
+        let table = self.workbook.table_by_name(&table_name).map_err(|_| {
+            ParseError::new_in_table(
+                ParseErrorKind::InvalidTableName,
+                Cell::new((0, 0), Data::Empty),
+                table_name,
+            )
+        })?;
+        println!("{:?}", table.data());
 
         let rows = table.data().rows();
 
         for (i, row) in rows.enumerate() {
-            res.push(
-                O::from_xlsx_row(row.into(), i, table.name()).unwrap_or_else(|e| {
-                    panic!(
-                        "err: {}! Sheet: {}, Table: {}, Row: {}",
-                        e,
-                        table.sheet_name(),
-                        table.name(),
-                        i
-                    )
-                }),
-            );
+            res.push(O::from_xlsx_row(row.into(), i, table.name())?);
         }
 
-        res
+        Ok(res)
     }
 
     /// Parse tables to struct.
-    pub fn parse<O: FromXlsxRow>(mut self) -> Vec<O>
-    where
-        <O as FromXlsxRow>::Error: std::fmt::Display,
-    {
+    pub fn parse<O: FromXlsxRow>(mut self) -> Result<Vec<O>, ParseError> {
         let mut res: Vec<O> = Vec::new();
-        self.sheets.clone().into_iter().for_each(|(_, tables)| {
+        for (_, tables) in self.sheets.clone().into_iter() {
             for table in tables {
-                res.extend(self.parse_by_rows(table));
+                res.extend(self.parse_by_rows(table)?);
             }
-        });
-        res
+        }
+        Ok(res)
     }
 }
 
@@ -328,6 +316,7 @@ impl<'a> Parser<'a> {
 pub enum ParseErrorKind {
     InvalidValue,
     ValueMissing,
+    InvalidTableName,
 }
 
 #[derive(Debug)]
@@ -351,6 +340,13 @@ impl std::fmt::Display for ParseError {
                     write!(f, "Value is missing, Location: {}", location)
                 } else {
                     write!(f, "Value is missing.")
+                }
+            }
+            ParseErrorKind::InvalidTableName => {
+                if let Some(location) = &self.location {
+                    write!(f, "Invalid table name, Location: {}", location)
+                } else {
+                    write!(f, "Invalid table name.")
                 }
             }
         }
@@ -447,13 +443,11 @@ pub trait FromXlsxRow
 where
     Self: Sized,
 {
-    type Error;
-
     fn from_xlsx_row(
         row: Vec<calamine::Data>,
         row_num: usize,
         table_name: &str,
-    ) -> std::result::Result<Self, Self::Error>;
+    ) -> std::result::Result<Self, ParseError>;
 }
 
 /// Interface that is used to convert XlsxData to target type.

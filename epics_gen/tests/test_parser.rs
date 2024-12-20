@@ -43,7 +43,7 @@ fn test_parser1() {
         .add_table("test_table_1")
         .build();
 
-    let parsed: Vec<TargetStruct> = parser.parse();
+    let parsed: Vec<TargetStruct> = parser.parse().unwrap();
 
     use RowId::*;
     let mut expected: Vec<TargetStruct> = vec![
@@ -81,7 +81,7 @@ fn test_parser1_array() {
         .add_table("test_table_1")
         .build();
 
-    let parsed: Vec<TargetStruct> = parser.parse();
+    let parsed: Vec<TargetStruct> = parser.parse().unwrap();
 
     use RowId::*;
     let mut expected: Vec<TargetStruct> = vec![

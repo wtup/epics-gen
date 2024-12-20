@@ -116,7 +116,6 @@ pub(super) fn impl_derive_xlsx_row(
     let res = quote! {
         impl epics_gen::FromXlsxRow for #id
         where Self: Sized {
-            type Error = epics_gen::ParseError;
             fn from_xlsx_row(row: epics_gen::XlsxRow, row_num: usize, table_name:&str)
             -> ::std::result::Result<Self, epics_gen::ParseError> {
                 let mut row = row.clone();
