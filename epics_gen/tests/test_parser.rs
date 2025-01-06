@@ -1,5 +1,6 @@
-use epics_gen::{DataType, FromXlsxData};
+use epics_gen::{DataType, FromXlsxData, ParseError, ParserBuilder};
 use epics_gen_macros::{FromXlsxFloat, FromXlsxRow, FromXlsxString};
+use regex::Regex;
 #[derive(FromXlsxString, strum_macros::EnumString, PartialEq, Eq, Debug)]
 enum RowId {
     First,
@@ -40,7 +41,9 @@ fn test_parser1() {
 
     let parser = epics_gen::ParserBuilder::new(&mut workbook)
         .add_sheet("Sheet1")
+        .expect("Sheet1 does not exist.")
         .add_table("test_table_1")
+        .expect("test_table_1 table does not exist.")
         .build();
 
     let parsed: Vec<TargetStruct> = parser.parse().unwrap();
@@ -78,7 +81,9 @@ fn test_parser1_array() {
 
     let parser = epics_gen::ParserBuilder::new(&mut workbook)
         .add_sheet("Sheet1")
+        .expect("Sheet1 does not exist.")
         .add_table("test_table_1")
+        .expect("test_table_1 table does not exist.")
         .build();
 
     let parsed: Vec<TargetStruct> = parser.parse().unwrap();
@@ -95,4 +100,29 @@ fn test_parser1_array() {
     for obj in parsed.into_iter() {
         assert_eq!(obj, expected.pop().unwrap());
     }
+}
+
+#[test]
+fn test_invalid_names() {
+    let mut workbook: epics_gen::XlsxWorkbook = epics_gen::open_workbook("tests/test_parser1.xlsx")
+        .expect("xlsx file for this test is missing!");
+
+    let builder = ParserBuilder::new(&mut workbook).add_sheet("Unexisting_Sheet");
+    assert!(builder.is_err());
+
+    let builder =
+        ParserBuilder::new(&mut workbook).add_sheets(Regex::new(r#"$SomePattern\d+^"#).unwrap());
+    assert!(builder.is_err());
+
+    let builder = ParserBuilder::new(&mut workbook)
+        .add_sheet("Sheet1")
+        .expect("Sheet1 exists.")
+        .add_table("Unexisting_Table");
+    assert!(builder.is_err());
+
+    let builder = ParserBuilder::new(&mut workbook)
+        .add_sheet("Sheet1")
+        .expect("Sheet1 exists.")
+        .add_tables(Regex::new(r#"$TablePattern\d+"#).unwrap());
+    assert!(builder.is_err());
 }

@@ -30,7 +30,9 @@
 //!
 //! let parser = epics_gen::ParserBuilder::new(&mut workbook)
 //!     .add_sheet("Sheet1")
+//!     .expect("Sheet1 exists")
 //!     .add_table("test_table_1")
+//!     .expect("test_table_1 exists")
 //!     .build();
 //!
 //!
@@ -41,7 +43,7 @@
 //!    float2: f64,
 //! }
 //!
-//! let parsed: Vec<TargetStruct> = parser.parse();
+//! let parsed: Vec<TargetStruct> = parser.parse().expect("Table is parsable");
 //! ```
 //! Note that the struct members must implement traits that enable conversion from Xlsx types to
 //! target type. See [`FromXlsxData`] trait for more details (and the macros that
@@ -196,27 +198,65 @@ impl<'a> ParserBuilder<'a> {
     }
 
     /// Adds single sheet to parser.
-    pub fn add_sheet(mut self, sheet: impl Into<String>) -> Self {
-        self.sheets.push(Entry::String(sheet.into()));
-        self
+    pub fn add_sheet(mut self, sheet: impl Into<String>) -> Result<Self, ParseError> {
+        let sheet: String = sheet.into();
+        let sheet_exists = self
+            .workbook
+            .sheet_names()
+            .into_iter()
+            .any(|existing_sheet| existing_sheet.as_ref() == sheet);
+        if sheet_exists {
+            self.sheets.push(Entry::String(sheet));
+            Ok(self)
+        } else {
+            Err(ParseError::invalid_sheet(sheet))
+        }
     }
 
     /// Adds a pattern which is expanded to matched sheet names in the workbook.
-    pub fn add_sheets(mut self, sheet_pattern: Regex) -> Self {
-        self.sheets.push(Entry::Regex(sheet_pattern));
-        self
+    pub fn add_sheets(mut self, sheet_pattern: Regex) -> Result<Self, ParseError> {
+        let sheet_exists = self
+            .workbook
+            .sheet_names()
+            .into_iter()
+            .any(|sheet| sheet_pattern.is_match(sheet.as_str()));
+        if sheet_exists {
+            self.sheets.push(Entry::Regex(sheet_pattern));
+            Ok(self)
+        } else {
+            Err(ParseError::invalid_sheet(sheet_pattern.to_string()))
+        }
     }
 
     /// Adds single table to parser.
-    pub fn add_table(mut self, table: impl Into<String>) -> Self {
-        self.tables.push(Entry::String(table.into()));
-        self
+    pub fn add_table(mut self, table: impl Into<String>) -> Result<Self, ParseError> {
+        let table: String = table.into();
+        let table_exists = self
+            .workbook
+            .table_names()
+            .into_iter()
+            .any(|existing_table| existing_table.as_str() == table.clone());
+        if table_exists {
+            self.tables.push(Entry::String(table));
+            Ok(self)
+        } else {
+            Err(ParseError::invalid_table(table))
+        }
     }
 
     /// Adds a pattern which is expanded to matched table names in the workbook.
-    pub fn add_tables(mut self, table_pattern: Regex) -> Self {
-        self.tables.push(Entry::Regex(table_pattern));
-        self
+    pub fn add_tables(mut self, table_pattern: Regex) -> Result<Self, ParseError> {
+        let table_exists = self
+            .workbook
+            .table_names()
+            .into_iter()
+            .any(|table| table_pattern.is_match(table));
+        if table_exists {
+            self.tables.push(Entry::Regex(table_pattern));
+            Ok(self)
+        } else {
+            Err(ParseError::invalid_table(table_pattern.to_string()))
+        }
     }
 
     fn get_valid_tables(&self, sheet_name: &str) -> Vec<String> {
@@ -316,6 +356,7 @@ pub enum ParseErrorKind {
     InvalidValue,
     ValueMissing,
     InvalidTableName,
+    InvalidSheetName,
 }
 
 #[derive(Debug)]
@@ -329,23 +370,30 @@ impl std::fmt::Display for ParseError {
         match self.kind {
             ParseErrorKind::InvalidValue => {
                 if let Some(location) = &self.location {
-                    write!(f, "Invalid value. Location: {}", location)
+                    write!(f, "Invalid value. {}", location)
                 } else {
                     write!(f, "Invalid value.")
                 }
             }
             ParseErrorKind::ValueMissing => {
                 if let Some(location) = &self.location {
-                    write!(f, "Value is missing, Location: {}", location)
+                    write!(f, "Value is missing, {}", location)
                 } else {
                     write!(f, "Value is missing.")
                 }
             }
             ParseErrorKind::InvalidTableName => {
                 if let Some(location) = &self.location {
-                    write!(f, "Invalid table name, Location: {}", location)
+                    write!(f, "Invalid table name, {}", location)
                 } else {
                     write!(f, "Invalid table name.")
+                }
+            }
+            ParseErrorKind::InvalidSheetName => {
+                if let Some(location) = &self.location {
+                    write!(f, "Invalid sheet name, {}", location)
+                } else {
+                    write!(f, "Invalid sheet name.")
                 }
             }
         }
@@ -371,7 +419,7 @@ impl ParseError {
         Self {
             kind,
             location: Some(XlsxLocation {
-                cell,
+                cell: Some(cell),
                 context: Context::Table(table_name.into()),
             }),
         }
@@ -384,8 +432,26 @@ impl ParseError {
         Self {
             kind,
             location: Some(XlsxLocation {
-                cell,
+                cell: Some(cell),
                 context: Context::Table(sheet_name.into()),
+            }),
+        }
+    }
+    pub fn invalid_sheet(sheet_name: impl Into<String>) -> Self {
+        Self {
+            kind: ParseErrorKind::InvalidSheetName,
+            location: Some(XlsxLocation {
+                cell: None,
+                context: Context::Sheet(sheet_name.into()),
+            }),
+        }
+    }
+    pub fn invalid_table(table_name: impl Into<String>) -> Self {
+        Self {
+            kind: ParseErrorKind::InvalidTableName,
+            location: Some(XlsxLocation {
+                cell: None,
+                context: Context::Table(table_name.into()),
             }),
         }
     }
@@ -396,21 +462,25 @@ impl std::error::Error for ParseError {}
 /// `Location` represents a location in a xslx spreadsheet or table (depending on the context)
 #[derive(Debug)]
 struct XlsxLocation {
-    cell: Cell<Data>,
     context: Context, //TODO: This could maybe be replaced with a simple string.
+    cell: Option<Cell<Data>>,
 }
 
 impl std::fmt::Display for XlsxLocation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let (row, col) = self.cell.get_position();
-        write!(
-            f,
-            "{}, Row: {}, Col: {}, Value: {} ",
-            self.context,
-            row,
-            col,
-            self.cell.get_value()
-        )
+        if let Some(cell) = &self.cell {
+            let (row, col) = cell.get_position();
+            write!(
+                f,
+                "{}, Row: {}, Col: {}, Value: {} ",
+                self.context,
+                row,
+                col,
+                cell.get_value()
+            )
+        } else {
+            write!(f, "{}", self.context)
+        }
     }
 }
 

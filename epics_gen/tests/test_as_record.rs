@@ -81,7 +81,6 @@ fn test_as_record_fmt() {
         val: 0.5,
     };
 
-    println!("test_struct: {}", test_struct.as_record());
     assert_eq!(
         test_struct.as_record(),
         r#"record(waveform, "$(P)Label-I") { field(INP, "{const:"Frac Syn"}") }
